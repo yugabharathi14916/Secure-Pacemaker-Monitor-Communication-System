@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pacemaker Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Montserrat', sans-serif;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 40px 20px;
+      position: relative;
+    }
+
+    h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+      text-shadow: 1px 1px 5px rgba(0,0,0,0.6);
+      z-index: 2;
+    }
+
+    #status {
+      font-size: 1.3em;
+      margin: 10px 0 20px;
+      padding: 16px 24px;
+      border-radius: 10px;
+      min-width: 300px;
+      text-align: center;
+      transition: 0.4s ease;
+      font-weight: bold;
+      z-index: 2;
+    }
+
+    .normal {
+      background-color: #28a745;
+      color: white;
+    }
+
+    .warning {
+      background-color: #ffc107;
+      color: #333;
+    }
+
+    .danger {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    .pulse-background {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 400%;
+      height: 100%;
+      background: url('https://www.transparenttextures.com/patterns/asfalt-light.png') repeat-x center;
+      background-size: contain;
+      animation: scroll 5s linear infinite;
+      opacity: 0.05;
+      z-index: 1;
+    }
+
+    @keyframes scroll {
+      0% { background-position: 0 50%; }
+      100% { background-position: -1000px 50%; }
+    }
+
+    .chart-container {
+      position: relative;
+      width: 100%;
+      max-width: 700px;
+      height: 240px;
+      background: white;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 2;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 220px !important;
+    }
+
+    footer {
+      margin-top: 30px;
+      font-size: 1em;
+      opacity: 0.8;
+      z-index: 2;
+      text-align: center;
+      line-height: 1.6em;
+    }
+  </style>
+</head>
+<body>
+  <div class="pulse-background"></div>
+
+  <h1>Pacemaker Heartbeat Monitor</h1>
+  <div id="status" class="normal">Loading...</div>
+  <div class="chart-container">
+    <canvas id="heartbeatChart"></canvas>
+  </div>
+  <footer>
+    Live updates every second<br>
+    <strong>VISHAL KUMAR RAHUL & YUGABHARATHI E — Internship 2025</strong>
+  </footer>
+
+  <script>
+    const statusBox = document.getElementById("status");
+    const apiUrl = "http://10.179.212.68:8000/heartbeat"; // Replace with your Pi's IP
+    const ctx = document.getElementById('heartbeatChart').getContext('2d');
+
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Heartbeat BPM',
+          data: [],
+          borderColor: 'cyan',
+          backgroundColor: 'rgba(0,255,255,0.1)',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            min: 0,
+            max: 300,
+            ticks: {
+              stepSize: 50,
+              color: '#333'
+            },
+            grid: { color: '#ccc' }
+          },
+          x: {
+            ticks: { color: '#333' },
+            grid: { display: false }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              color: '#333'
+            }
+          }
+        }
+      }
+    });
+
+    function getStatusColor(bpm, message) {
+      if (message.toLowerCase().includes("bradycardia") || bpm < 50) return "danger";
+      if (message.toLowerCase().includes("tachycardia") || bpm > 130) return "danger";
+      if (message.toLowerCase().includes("normal") || (bpm >= 50 && bpm <= 130)) return "normal";
+      return "warning";
+    }
+
+    function updateStatus() {
+      fetch(apiUrl)
+        .then(res => res.json())
+        .then(data => {
+          const message = data.heartbeat || "No data";
+          let bpm = 0;
+          const match = message.match(/Heartbeat:\s*(\d+)/i);
+          if (match) bpm = parseInt(match[1]);
+
+          const cssClass = getStatusColor(bpm, message);
+          statusBox.className = cssClass;
+          statusBox.textContent = message;
+
+          const time = new Date().toLocaleTimeString();
+          if (chart.data.labels.length > 20) {
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+          }
+          chart.data.labels.push(time);
+          chart.data.datasets[0].data.push(bpm);
+          chart.update();
+        })
+        .catch(() => {
+          statusBox.className = "danger";
+          statusBox.textContent = "Error contacting monitor.";
+        });
+    }
+
+    setInterval(updateStatus, 1000);
+    updateStatus();
+  </script>
+</body>
+</html>
